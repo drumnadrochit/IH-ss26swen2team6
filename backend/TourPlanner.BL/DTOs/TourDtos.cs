@@ -1,23 +1,22 @@
+using System.ComponentModel.DataAnnotations;
 using TourPlanner.DAL.Entities.Enums;
 
 namespace TourPlanner.BL.DTOs;
 
 public record CreateTourRequest(
-    string Name,
-    string Description,
-    string From,
-    string To,
-    TransportType TransportType,
-    string? ImagePath = null
+    [Required, StringLength(200, MinimumLength = 1)] string Name,
+    [StringLength(2000)] string Description,
+    [Required, StringLength(500, MinimumLength = 1)] string From,
+    [Required, StringLength(500, MinimumLength = 1)] string To,
+    TransportType TransportType
 );
 
 public record UpdateTourRequest(
-    string Name,
-    string Description,
-    string From,
-    string To,
-    TransportType TransportType,
-    string? ImagePath = null
+    [Required, StringLength(200, MinimumLength = 1)] string Name,
+    [StringLength(2000)] string Description,
+    [Required, StringLength(500, MinimumLength = 1)] string From,
+    [Required, StringLength(500, MinimumLength = 1)] string To,
+    TransportType TransportType
 );
 
 public record TourResponse(
@@ -34,4 +33,15 @@ public record TourResponse(
     string ChildFriendliness,
     DateTime CreatedAt,
     DateTime UpdatedAt
+);
+
+public record TourExportDto(
+    string Name,
+    string Description,
+    string From,
+    string To,
+    string TransportType,
+    double Distance,
+    int EstimatedTime,
+    List<TourLogExportDto> Logs
 );

@@ -19,12 +19,12 @@ export default function TourSearch({ onSearch, onClear }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+    <form onSubmit={handleSubmit} className="flex-row gap-2 mb-4">
       <input
+        className="flex-1"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search tours..."
-        style={{ flex: 1 }}
+        placeholder="Search tours, logs, popularity, child-friendliness..."
       />
       <button type="submit" className="btn-primary btn-sm">Search</button>
       {query && <button type="button" className="btn-secondary btn-sm" onClick={handleClear}>Clear</button>}

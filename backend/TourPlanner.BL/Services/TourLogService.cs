@@ -1,4 +1,5 @@
 using TourPlanner.BL.DTOs;
+using TourPlanner.BL.Exceptions;
 using TourPlanner.BL.Services.Interfaces;
 using TourPlanner.DAL.Entities;
 using TourPlanner.DAL.Repositories.Interfaces;
@@ -22,7 +23,7 @@ public class TourLogService : ITourLogService
     {
         var tour = await _tourRepo.GetByIdAsync(tourId);
         if (tour == null || tour.UserId != userId)
-            throw new KeyNotFoundException("Tour not found.");
+            throw new EntityNotFoundException("Tour not found.");
         var logs = await _logRepo.GetByTourIdAsync(tourId);
         return logs.Select(MapToResponse);
     }
@@ -32,7 +33,7 @@ public class TourLogService : ITourLogService
         ValidateLogRequest(request.Difficulty, request.Rating, request.TotalDistance, request.TotalTime);
         var tour = await _tourRepo.GetByIdAsync(tourId);
         if (tour == null || tour.UserId != userId)
-            throw new KeyNotFoundException("Tour not found.");
+            throw new EntityNotFoundException("Tour not found.");
 
         var log = new TourLog
         {
@@ -53,10 +54,7 @@ public class TourLogService : ITourLogService
     public async Task<TourLogResponse> UpdateLogAsync(Guid tourId, Guid logId, UpdateTourLogRequest request, Guid userId)
     {
         ValidateLogRequest(request.Difficulty, request.Rating, request.TotalDistance, request.TotalTime);
-        var log = await _logRepo.GetByIdAsync(logId)
-            ?? throw new KeyNotFoundException("Log not found.");
-        if (log.TourId != tourId || log.UserId != userId)
-            throw new UnauthorizedAccessException("Access denied.");
+        var log = await GetOwnedLogOrThrowAsync(tourId, logId, userId);
 
         log.DateTime = request.DateTime;
         log.Comment = request.Comment;
@@ -71,24 +69,37 @@ public class TourLogService : ITourLogService
 
     public async Task DeleteLogAsync(Guid tourId, Guid logId, Guid userId)
     {
-        var log = await _logRepo.GetByIdAsync(logId)
-            ?? throw new KeyNotFoundException("Log not found.");
-        if (log.TourId != tourId || log.UserId != userId)
-            throw new UnauthorizedAccessException("Access denied.");
+        await GetOwnedLogOrThrowAsync(tourId, logId, userId);
         await _logRepo.DeleteAsync(logId);
         Log.Info($"TourLog deleted: {logId}");
+    }
+
+    private async Task<TourLog> GetOwnedLogOrThrowAsync(Guid tourId, Guid logId, Guid userId)
+    {
+        var log = await _logRepo.GetByIdAsync(logId);
+        if (log == null)
+        {
+            Log.Warn($"TourLog {logId} not found.");
+            throw new EntityNotFoundException("Log not found.");
+        }
+        if (log.TourId != tourId || log.UserId != userId)
+        {
+            Log.Warn($"User {userId} attempted to access log {logId} owned by {log.UserId}.");
+            throw new ForbiddenAccessException("Access denied.");
+        }
+        return log;
     }
 
     private static void ValidateLogRequest(int difficulty, int rating, double distance, int time)
     {
         if (difficulty < 1 || difficulty > 5)
-            throw new ArgumentException("Difficulty must be between 1 and 5.");
+            throw new DomainValidationException("Difficulty must be between 1 and 5.");
         if (rating < 1 || rating > 5)
-            throw new ArgumentException("Rating must be between 1 and 5.");
+            throw new DomainValidationException("Rating must be between 1 and 5.");
         if (distance <= 0)
-            throw new ArgumentException("Distance must be positive.");
+            throw new DomainValidationException("Distance must be positive.");
         if (time <= 0)
-            throw new ArgumentException("Time must be positive.");
+            throw new DomainValidationException("Time must be positive.");
     }
 
     private static TourLogResponse MapToResponse(TourLog log) =>

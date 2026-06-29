@@ -47,6 +47,12 @@ namespace TourPlanner.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<double?>("FromLat")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("FromLon")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -59,6 +65,12 @@ namespace TourPlanner.DAL.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<double?>("ToLat")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("ToLon")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("TransportType")
                         .IsRequired()

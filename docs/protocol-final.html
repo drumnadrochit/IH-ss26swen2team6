@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tour Planner – Final Submission Protocol</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #222; background: #fff; }
+  .page { width: 210mm; margin: 0 auto; padding: 20mm 20mm 18mm 20mm; }
+  h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+  h2 { font-size: 17px; font-weight: 700; margin: 28px 0 10px 0; border-bottom: 2px solid #1a56db; padding-bottom: 4px; color: #1a56db; }
+  h3 { font-size: 13px; font-weight: 700; margin: 16px 0 6px 0; }
+  h4 { font-size: 12px; font-weight: 700; margin: 10px 0 4px 0; color: #444; }
+  p  { line-height: 1.6; margin-bottom: 8px; }
+  ul { padding-left: 20px; margin-bottom: 8px; line-height: 1.7; }
+  li { margin-bottom: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12px; }
+  th { background: #1a56db; color: #fff; padding: 6px 10px; text-align: left; }
+  td { padding: 5px 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  tr:nth-child(even) td { background: #f5f8ff; }
+  .cover { text-align: center; padding: 40px 0 30px 0; border-bottom: 3px solid #1a56db; margin-bottom: 30px; }
+  .cover .subtitle { font-size: 16px; color: #555; margin-top: 8px; }
+  .cover .meta { margin-top: 20px; font-size: 13px; color: #444; line-height: 2; }
+  .badge-ok  { display: inline-block; background: #22c55e; color: #fff; border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+  .badge-no  { display: inline-block; background: #dc2626; color: #fff; border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+  .wireframe { border: 1px solid #999; border-radius: 6px; background: #f9f9f9; font-family: monospace; font-size: 11px; padding: 12px 14px; margin: 8px 0 14px 0; line-height: 1.5; white-space: pre; overflow-x: auto; }
+  .mermaid { margin: 10px 0 16px 0; }
+  .note { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 8px 12px; font-size: 12px; margin-bottom: 12px; }
+  .pagebreak { page-break-before: always; margin-top: 30px; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-family: monospace; }
+  @media print {
+    body { font-size: 12px; }
+    .page { padding: 15mm 18mm; }
+    .pagebreak { page-break-before: always; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <h1>Tour Planner</h1>
+  <div class="subtitle">Final Submission Protocol</div>
+  <div class="meta">
+    <strong>Course:</strong> Software Engineering – 4th Semester<br/>
+    <strong>Team:</strong> Nippon Lama &amp; Mark Stessl<br/>
+    <strong>Date:</strong> 30th June 2026<br/>
+    <strong>Submission Stage:</strong> Final (Class 24) – Business Logic, DAL, MVVM &amp; all remaining features
+  </div>
+</div>
+
+<!-- TOC -->
+<h2>Table of Contents</h2>
+<ol style="line-height:2; padding-left:22px;">
+  <li>Project Overview</li>
+  <li>Response to Intermediate-Submission Feedback</li>
+  <li>Technology Stack &amp; Key Decisions</li>
+  <li>MVVM Architecture in React</li>
+  <li>Design Patterns Applied</li>
+  <li>Technical Steps, Failures &amp; Solutions (Final Phase)</li>
+  <li>Application Features (UML Use Case Diagram)</li>
+  <li>UI-Flow / Wireframes</li>
+  <li>Application Architecture (UML)</li>
+  <li>Unit Tests – Selection &amp; Justification</li>
+  <li>Must-Haves Compliance Matrix</li>
+  <li>Non-Functional Requirements Compliance</li>
+  <li>Time Tracking &amp; Repository Link</li>
+</ol>
+
+<!-- 1 OVERVIEW -->
+<h2>1. Project Overview</h2>
+<p>
+  Tour Planner is a full-stack web application for planning and logging bike, hike, running, and vacation tours.
+  Users self-register, create tours, and record tour logs with statistics. Route data (distance, duration, map
+  polyline) is fetched live from the <strong>OpenRouteService.org</strong> REST API and displayed on an interactive
+  <strong>Leaflet</strong> map. The application runs in a three-container Docker Compose setup
+  (PostgreSQL + ASP.NET Core backend + Nginx/React frontend).
+</p>
+<p>
+  This final submission completes the business logic and data access layer and adds everything that was missing
+  or stubbed at the intermediate stage: full-text search across tour and log data (including computed attributes),
+  import/export of tour data, externally-stored tour images, a working child-friendliness classifier, a Strategy-based
+  fallback for route estimation, a Unit of Work for atomic multi-entity writes, hardened input validation, removal of
+  committed secrets, a unique weather feature, and — most importantly — an explicit MVVM layer on the frontend.
+</p>
+
+<!-- 2 FEEDBACK RESPONSE -->
+<h2>2. Response to Intermediate-Submission Feedback</h2>
+<p>
+  The intermediate review raised three blocking points and several strongly-recommended fixes. Each is addressed below.
+</p>
+<table>
+  <thead><tr><th>Feedback Item</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>No MVVM — Zustand stores are Flux, not MVVM</strong></td>
+      <td>
+        A dedicated <code>ViewModel</code> base class and per-screen ViewModels
+        (<code>AuthViewModel</code>, <code>TourListViewModel</code>, <code>TourDetailViewModel</code>) were introduced.
+        Views (React components) now bind to ViewModel properties and invoke ViewModel commands instead of owning
+        business state in local <code>useState</code> or reading Zustand stores directly. See Section 4.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Protocol / wireframes missing from repository</strong></td>
+      <td>This document. Includes use-case diagram, wireframes, UI-flow, architecture diagrams, and test rationale.</td>
+    </tr>
+    <tr>
+      <td><strong>Image upload handled directly in the controller</strong></td>
+      <td>Extracted into <code>IImageStorage</code> / <code>FileImageStorage</code> in the BL layer. The controller
+        only opens the upload stream and delegates; validation (MIME type, 5&nbsp;MB limit) and file-system
+        persistence live in the testable service.</td>
+    </tr>
+    <tr>
+      <td><strong>No Unit of Work — partial writes possible</strong></td>
+      <td>Added <code>IUnitOfWork</code> wrapping the <code>DbContext</code>. <code>TourImportExportService</code> uses
+        it to add a tour and all of its logs in a single <code>SaveChangesAsync</code> call, so an import cannot
+        leave a tour without its logs (or vice versa) if the process is interrupted.</td>
+    </tr>
+    <tr>
+      <td><strong>No input validation via DataAnnotations</strong></td>
+      <td><code>[Required]</code>, <code>[StringLength]</code>, <code>[Range]</code>, and <code>[EmailAddress]</code>
+        attributes added to every request DTO. <code>[ApiController]</code> now returns automatic <code>400</code>
+        responses for invalid payloads in addition to the existing service-layer checks.</td>
+    </tr>
+    <tr>
+      <td><strong><code>ComputeChildFriendliness</code> hardcoded to "N/A"</strong></td>
+      <td>Implemented as a Strategy (<code>IChildFriendlinessClassifier</code> /
+        <code>DefaultChildFriendlinessClassifier</code>), deriving a Yes/Moderate/No verdict from the average
+        difficulty, distance, and time of a tour's logs.</td>
+    </tr>
+    <tr>
+      <td><strong>Secrets committed in <code>docker-compose.yml</code></strong></td>
+      <td>JWT secret, ORS API key, and the Postgres password are now required environment variables
+        (<code>${VAR:?...}</code>) sourced from a local, git-ignored <code>.env</code> file; an
+        <code>.env.example</code> documents the required names.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- 3 TECH STACK -->
+<h2>3. Technology Stack &amp; Key Decisions</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Technology</th><th>Reason</th></tr></thead>
+  <tbody>
+    <tr><td>Frontend framework</td><td>React 18 + TypeScript + Vite</td><td>Accepted alternative to Angular (see Section 2); MVVM applied explicitly on top.</td></tr>
+    <tr><td>MVVM ViewModels</td><td>Hand-written <code>ViewModel</code> base class + <code>useSyncExternalStore</code></td><td>No framework dependency needed; gives observable properties and commands without two-way binding machinery.</td></tr>
+    <tr><td>Model / session state</td><td>Zustand + localStorage persistence</td><td>Acts as the persisted Model for the JWT session; ViewModels read/write it, Views never touch it directly except for route guards.</td></tr>
+    <tr><td>HTTP client</td><td>Axios with interceptors</td><td>Auto-attaches Bearer token on every request; auto-redirects on 401.</td></tr>
+    <tr><td>Map</td><td>react-leaflet + Leaflet.js</td><td>Required by spec. Open-source, no API key needed for tile display.</td></tr>
+    <tr><td>Backend framework</td><td>ASP.NET Core Web API (.NET 10)</td><td>Required by spec. LTS release, modern minimal hosting model.</td></tr>
+    <tr><td>ORM</td><td>Entity Framework Core 10 + Npgsql</td><td>Required by spec. Code-first migrations, LINQ queries.</td></tr>
+    <tr><td>Database</td><td>PostgreSQL 16</td><td>Required by spec.</td></tr>
+    <tr><td>Authentication</td><td>JWT (HS256, 24h expiry)</td><td>Stateless, no server-side session storage needed.</td></tr>
+    <tr><td>Logging</td><td>log4net 3.0</td><td>Required by spec. Rolling file appender configured.</td></tr>
+    <tr><td>Testing</td><td>NUnit 4 + Moq</td><td>Required by spec. Moq isolates services from repositories/HTTP clients.</td></tr>
+    <tr><td>Containerization</td><td>Docker Compose</td><td>One-command startup for all three containers; images persisted in a named volume.</td></tr>
+    <tr><td>Route API</td><td>OpenRouteService.org</td><td>Required by spec. Free geocoding + directions endpoint.</td></tr>
+    <tr><td>Weather API (unique feature)</td><td>Open-Meteo.com</td><td>No API key required, fits the "add a unique feature" requirement with minimal added complexity.</td></tr>
+  </tbody>
+</table>
+
+<!-- 4 MVVM -->
+<h2>4. MVVM Architecture in React</h2>
+<p>
+  React has no built-in ViewModel concept, so the project defines its own minimal MVVM layer instead of relying on
+  Zustand stores or component-local <code>useState</code> as the source of truth for business state.
+</p>
+<table>
+  <thead><tr><th>MVVM Role</th><th>Implementation</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Model</strong></td><td><code>api/*.ts</code> (HTTP access), DTO <code>types/*.ts</code>, and <code>store/authStore.ts</code> (persisted session) — the actual data and server access.</td></tr>
+    <tr><td><strong>ViewModel</strong></td><td><code>viewmodels/ViewModel.ts</code> (base class), <code>AuthViewModel</code>, <code>TourListViewModel</code>, <code>TourDetailViewModel</code> — observable properties + commands, no JSX.</td></tr>
+    <tr><td><strong>View</strong></td><td>Page/components under <code>pages/</code> and <code>components/</code> — render-only, read ViewModel properties, call ViewModel commands on user interaction.</td></tr>
+  </tbody>
+</table>
+<p>
+  <code>ViewModel</code> is a plain class holding a listener set and a <code>version</code> counter. Every mutating
+  method ends with <code>this.notify()</code>, which increments <code>version</code> and notifies subscribers. The
+  <code>useViewModel(factory)</code> hook creates one ViewModel instance per component (via <code>useState</code>) and
+  subscribes to it with React's <code>useSyncExternalStore</code>, so the View re-renders whenever the ViewModel's
+  state changes — the same effect two-way data binding gives you in Angular/WPF, without requiring a framework that
+  supports it natively.
+</p>
+<div class="wireframe">// View (TourDetailPage.tsx) - binds to the ViewModel, no business logic
+const vm = useViewModel(() => new TourDetailViewModel(id));
+useEffect(() => { void vm.load(); }, [vm]);
+...
+&lt;h1&gt;{vm.tour.name}&lt;/h1&gt;
+&lt;button onClick={() => vm.requestDeleteTour()}&gt;Delete&lt;/button&gt;
+
+// ViewModel (TourDetailViewModel.ts) - observable state + commands, no JSX
+async confirmDeleteTour(): Promise&lt;void&gt; {
+  await deleteTour(this.tourId);   // Model
+}</div>
+<p>
+  Transient, uncommitted form input (e.g. text typed into the Tour/TourLog create forms before Save is pressed) is
+  kept as local component state, consistent with how MVVM implementations on other platforms treat input buffering —
+  the moment the user submits, the ViewModel command is invoked and the result becomes part of the ViewModel's
+  observable state.
+</p>
+
+<!-- 5 PATTERNS -->
+<h2>5. Design Patterns Applied</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>Where</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>Repository</td><td><code>IRepository&lt;T&gt;</code> / <code>TourRepository</code>, <code>TourLogRepository</code>, <code>UserRepository</code></td><td>Decouples BL from EF Core; enables mock-based service tests.</td></tr>
+    <tr><td>Dependency Injection</td><td>ASP.NET Core container (<code>Program.cs</code>)</td><td>Services/repositories/strategies depend on abstractions, wired at startup.</td></tr>
+    <tr><td>DTO</td><td><code>TourPlanner.BL/DTOs</code></td><td>Separates wire contracts from EF entities; carries validation attributes.</td></tr>
+    <tr><td>Adapter</td><td><code>IOpenRouteServiceClient</code>, <code>IWeatherClient</code></td><td>Wraps third-party REST APIs (ORS, Open-Meteo) behind a stable interface the BL can mock in tests.</td></tr>
+    <tr><td>Strategy</td><td><code>IChildFriendlinessClassifier</code>; <code>ITransportSpeedStrategy</code> (one class per <code>TransportType</code>)</td><td>New transport types or classification rules are added as new classes registered in DI, with no switch statement to edit (Open/Closed).</td></tr>
+    <tr><td>Unit of Work</td><td><code>IUnitOfWork</code> used by <code>TourImportExportService</code></td><td>Commits a tour and all of its imported logs in one <code>SaveChanges</code> call instead of one call per repository.</td></tr>
+    <tr><td>MVVM</td><td>Frontend <code>viewmodels/</code></td><td>See Section 4.</td></tr>
+  </tbody>
+</table>
+<p>
+  The BL layer also defines its own exception vocabulary (<code>TourPlanner.BL/Exceptions/DomainExceptions.cs</code>:
+  <code>EntityNotFoundException</code>, <code>ForbiddenAccessException</code>, <code>DomainValidationException</code>,
+  <code>ConflictException</code>, <code>InvalidCredentialsException</code>) instead of throwing generic .NET
+  exceptions (<code>ArgumentException</code>, <code>KeyNotFoundException</code>,
+  <code>UnauthorizedAccessException</code>) across layer boundaries. Controllers catch these domain exceptions and
+  translate each to the matching HTTP status code (400/401/403/404/409).
+</p>
+
+<!-- 6 FAILURES -->
+<div class="pagebreak"></div>
+<h2>6. Technical Steps, Failures &amp; Solutions (Final Phase)</h2>
+<table>
+  <thead><tr><th>Issue</th><th>Root Cause</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Full-text search over computed attributes (popularity, child-friendliness) couldn't be expressed as a single SQL query</td>
+      <td>Popularity and child-friendliness are computed in C# from a tour's logs, not stored columns</td>
+      <td>Search is implemented in <code>TourService.SearchToursAsync</code>: load the user's tours (already <code>Include</code>s logs), map each to its <code>TourResponse</code> (which carries the computed fields), then filter in-memory across raw and computed fields. Acceptable given the per-user dataset size.</td>
+    </tr>
+    <tr>
+      <td>Adding lat/lon to <code>Tour</code> required a new EF migration without a live dev database to hand</td>
+      <td>Coordinates from ORS geocoding were previously discarded after computing distance/duration</td>
+      <td>Added nullable <code>FromLat/FromLon/ToLat/ToLon</code> columns and generated <code>AddTourCoordinates</code> via <code>dotnet ef migrations add</code>; applied automatically by the existing <code>db.Database.Migrate()</code> call on startup.</td>
+    </tr>
+    <tr>
+      <td>Directions API occasionally geocodes both endpoints but fails the subsequent directions call, leaving Distance/EstimatedTime at 0</td>
+      <td>ORS directions endpoint has its own failure modes independent of geocoding</td>
+      <td>Added a haversine-distance fallback combined with the <code>ITransportSpeedStrategy</code> average speed per transport type, so a tour still gets a sensible (if approximate) distance/time instead of zero.</td>
+    </tr>
+    <tr>
+      <td>Uploaded images need to be served back to the browser without exposing the whole filesystem</td>
+      <td>Images are intentionally stored outside the database/wwwroot, in a configurable directory</td>
+      <td>Mapped a dedicated <code>StaticFileMiddleware</code> with a <code>PhysicalFileProvider</code> rooted at <code>Storage:BasePath</code> to the <code>/uploads</code> request path; both the Vite dev proxy and the production Nginx config forward <code>/uploads</code> to the backend.</td>
+    </tr>
+    <tr>
+      <td>React has no first-class ViewModel/observable primitive</td>
+      <td>Hooks and Zustand encourage colocating business logic with components (Flux-style), which the intermediate review correctly flagged as not MVVM</td>
+      <td>Implemented a ~25-line <code>ViewModel</code> base class around <code>useSyncExternalStore</code> (see Section 4) instead of pulling in a heavier MVVM/MobX framework, keeping the dependency footprint small.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- 7 USE CASE -->
+<div class="pagebreak"></div>
+<h2>7. Application Features – UML Use Case Diagram</h2>
+<div class="mermaid">
+flowchart LR
+    U(["👤 User"])
+
+    subgraph AUTH ["Authentication"]
+        UC1["Register"]
+        UC2["Login"]
+        UC3["Logout"]
+    end
+
+    subgraph TOURS ["Tour Management"]
+        UC4["Create Tour"]
+        UC5["View Tour List"]
+        UC6["View Tour Detail"]
+        UC7["Edit Tour"]
+        UC8["Delete Tour"]
+        UC9["Search Tours\n(full-text, incl. computed values)"]
+        UC10["View Route on Map\n«uses Leaflet + ORS»"]
+        UC17["Upload Tour Image"]
+        UC18["Export Tours (JSON)"]
+        UC19["Import Tours (JSON)"]
+        UC20["View Current Weather\n«uses Open-Meteo» (unique feature)"]
+    end
+
+    subgraph LOGS ["Tour Log Management"]
+        UC11["Add Tour Log"]
+        UC12["Edit Tour Log"]
+        UC13["Delete Tour Log"]
+        UC14["View Tour Logs"]
+    end
+
+    subgraph COMPUTED ["Computed Attributes"]
+        UC15["View Popularity"]
+        UC16["View Child-Friendliness"]
+    end
+
+    U --> UC1
+    U --> UC2
+    U --> UC3
+    U --> UC4
+    U --> UC5
+    U --> UC6
+    U --> UC7
+    U --> UC8
+    U --> UC9
+    U --> UC18
+    U --> UC19
+    UC4 --> UC10
+    UC6 --> UC10
+    UC6 --> UC14
+    UC6 --> UC15
+    UC6 --> UC16
+    UC6 --> UC17
+    UC6 --> UC20
+    U --> UC11
+    U --> UC12
+    U --> UC13
+</div>
+
+<h3>Feature Summary</h3>
+<table>
+  <thead><tr><th>Feature</th><th>Status</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>User self-registration / login</td><td><span class="badge-ok">DONE</span></td><td>BCrypt hashing, JWT issuance</td></tr>
+    <tr><td>Tour CRUD</td><td><span class="badge-ok">DONE</span></td><td>Ownership-checked in the service layer</td></tr>
+    <tr><td>Tour Log CRUD</td><td><span class="badge-ok">DONE</span></td><td>Multiple logs per tour</td></tr>
+    <tr><td>ORS route data + Leaflet map</td><td><span class="badge-ok">DONE</span></td><td>Haversine + Strategy fallback if directions fail</td></tr>
+    <tr><td>Full-text search incl. computed attributes</td><td><span class="badge-ok">DONE</span></td><td>Name, description, from/to, log comments, popularity, child-friendliness</td></tr>
+    <tr><td>Popularity / child-friendliness (computed)</td><td><span class="badge-ok">DONE</span></td><td>Strategy-based classifier, no longer a stub</td></tr>
+    <tr><td>Tour image upload, stored externally on disk</td><td><span class="badge-ok">DONE</span></td><td>MIME + size validated in <code>IImageStorage</code></td></tr>
+    <tr><td>Import / export of tour data</td><td><span class="badge-ok">DONE</span></td><td>JSON; import is atomic via Unit of Work</td></tr>
+    <tr><td>Unique feature: current weather at tour start</td><td><span class="badge-ok">DONE</span></td><td>Open-Meteo, no API key required</td></tr>
+    <tr><td>Input validation (client + server)</td><td><span class="badge-ok">DONE</span></td><td>DataAnnotations + service-layer checks, mirrored on the frontend</td></tr>
+  </tbody>
+</table>
+
+<h3>7.1 Unique Feature: Current Weather at the Tour's Start Location</h3>
+<p>
+  <code>GET /api/tours/{'{id}'}/weather</code> looks up the tour's geocoded <code>FromLat</code>/<code>FromLon</code>
+  (captured when the tour's route is first resolved against OpenRouteService) and forwards them to
+  <strong>Open-Meteo.com</strong>, a free weather API that requires no API key or registration. The Tour Detail page
+  renders the result — temperature, wind speed, a human-readable description, and day/night — in a small
+  <code>WeatherWidget</code> component. This was chosen as the mandatory unique feature because it is directly
+  useful for trip planning (e.g. deciding whether today is a good day for a 60&nbsp;km bike tour) and needed no
+  additional backend infrastructure beyond one more Adapter (<code>IWeatherClient</code>) following the same shape
+  as the existing OpenRouteService integration.
+</p>
+
+<!-- 8 WIREFRAMES -->
+<div class="pagebreak"></div>
+<h2>8. UI-Flow / Wireframes</h2>
+
+<h3>8.1 Tours List Page</h3>
+<div class="wireframe">┌───────────────────────────────────────────────────────────────────┐
+│  Tour Planner                                  Hello, jane  [Logout]│
+├───────────────────────────────────────────────────────────────────┤
+│  My Tours                       [Export] [Import] [+ New Tour]     │
+│  [Search tours, logs, popularity, child-friendliness...] [Search]  │
+│                                                                     │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │  Vienna → Salzburg              🚲 Bike      [View] [Delete]  │ │
+│  │  295 km · ~180 min · Popularity: 3 · Moderate                 │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │  Alps Hike                      🥾 Hike      [View] [Delete]  │ │
+│  │  18 km · ~240 min · Popularity: 1 · Yes                       │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────┘</div>
+
+<h3>8.2 Tour Detail Page</h3>
+<div class="wireframe">┌────────────────────────────────────────────────────────────────────┐
+│  ← Back                                                            │
+│                                                                    │
+│  Vienna → Salzburg   [Bike]   [Upload Image] [Edit] [Delete]      │
+│  295 km · ~180 min · Popularity: 3 · Moderate                     │
+│  [tour image, if uploaded]                                        │
+│                                                                    │
+│  ☀️  Clear sky   21°C   Wind 12 km/h   (weather widget)            │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  [ Leaflet Map: route polyline + markers ]   │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Tour Logs (3)                                   [+ Add Log]      │
+│  ┌────────────────────────────────────────────────────────────┐    │
+│  │  2026-04-10  ★★★★☆  Diff: 3/5  Dist: 285km  Time: 175min   │    │
+│  │  "Great weather, roads were excellent."   [Edit] [Delete]  │    │
+│  └────────────────────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────────────────────┘</div>
+
+<h3>8.3 UI Navigation Flow</h3>
+<div class="mermaid">
+flowchart TD
+    A["/login"] -->|credentials ok| B["/  Tours List"]
+    A -->|no account| C["/register"]
+    C -->|registered| A
+    B -->|click tour| D["/tours/:id  Detail"]
+    B -->|Search/Import/Export| B
+    D -->|Back| B
+    D -->|Edit / Upload Image| D
+    D -->|Delete| B
+    D -->|Add/Edit Log| D
+    B -->|Logout| A
+</div>
+
+<!-- 9 ARCHITECTURE -->
+<div class="pagebreak"></div>
+<h2>9. Application Architecture – UML</h2>
+
+<h3>9.1 System Overview</h3>
+<div class="mermaid">
+flowchart LR
+    subgraph BROWSER ["Browser"]
+        FE["React SPA (MVVM)\nViews -> ViewModels -> Model (api/*, authStore)"]
+    end
+    subgraph DOCKER ["Docker Compose"]
+        subgraph API_LAYER ["TourPlanner.API (.NET 10)"]
+            CTRL["Controllers\nAuth / Tours / TourLogs / Route"]
+        end
+        subgraph BL_LAYER ["TourPlanner.BL"]
+            SVC["Services\nTourService, TourLogService,\nAuthService, TourImportExportService,\nWeatherService"]
+            STRAT["Strategies\nIChildFriendlinessClassifier\nITransportSpeedStrategy (x4)"]
+            ORSC["IOpenRouteServiceClient / IWeatherClient\n(Adapter)"]
+            IMG["IImageStorage"]
+        end
+        subgraph DAL_LAYER ["TourPlanner.DAL"]
+            REPO["Repositories\nUserRepository\nTourRepository\nTourLogRepository"]
+            UOW["IUnitOfWork"]
+            CTX["TourPlannerDbContext (EF Core)"]
+        end
+        PG[("PostgreSQL 16")]
+        FS[("Filesystem\nuploaded_images/")]
+    end
+    EXT1["OpenRouteService.org"]
+    EXT2["Open-Meteo.com"]
+
+    FE -->|"HTTP/JSON (JWT Bearer)"| CTRL
+    CTRL --> SVC
+    SVC --> STRAT
+    SVC --> ORSC
+    ORSC -->|HTTPS| EXT1
+    ORSC -->|HTTPS| EXT2
+    SVC --> REPO
+    SVC --> UOW
+    IMG --> FS
+    REPO --> CTX
+    UOW --> CTX
+    CTX -->|Npgsql| PG
+</div>
+
+<h3>9.2 Class Diagram (simplified, key relationships)</h3>
+<div class="mermaid">
+classDiagram
+    class IRepository~T~ {
+        &lt;&lt;interface&gt;&gt;
+        +GetByIdAsync(id) T
+        +GetAllAsync() List~T~
+        +AddAsync(entity) T
+        +UpdateAsync(entity) void
+        +DeleteAsync(id) void
+    }
+    class TourRepository {
+        +GetByUserIdAsync(userId) List~Tour~
+        +GetWithLogsAsync(tourId) Tour
+    }
+    IRepository~T~ <|-- TourRepository
+    IRepository~T~ <|-- TourLogRepository
+    IRepository~T~ <|-- UserRepository
+
+    class Tour {
+        +Guid Id
+        +string Name
+        +string From
+        +string To
+        +TransportType TransportType
+        +double Distance
+        +int EstimatedTime
+        +string RouteImagePath
+        +double FromLat
+        +double FromLon
+        +Guid UserId
+        +List~TourLog~ TourLogs
+    }
+    Tour "1" --> "*" TourLog : has
+    User "1" --> "*" Tour : owns
+
+    class ITransportSpeedStrategy {
+        &lt;&lt;interface&gt;&gt;
+        +TransportType Type
+        +double AverageSpeedKmh
+    }
+    class BikeSpeedStrategy
+    class HikeSpeedStrategy
+    class RunningSpeedStrategy
+    class VacationSpeedStrategy
+    ITransportSpeedStrategy <|.. BikeSpeedStrategy
+    ITransportSpeedStrategy <|.. HikeSpeedStrategy
+    ITransportSpeedStrategy <|.. RunningSpeedStrategy
+    ITransportSpeedStrategy <|.. VacationSpeedStrategy
+
+    class IChildFriendlinessClassifier {
+        &lt;&lt;interface&gt;&gt;
+        +Classify(logs) string
+    }
+    class DefaultChildFriendlinessClassifier
+    IChildFriendlinessClassifier <|.. DefaultChildFriendlinessClassifier
+
+    class TourService {
+        +GetToursAsync(userId)
+        +SearchToursAsync(userId, query)
+        +CreateTourAsync(request, userId)
+        +UpdateTourAsync(tourId, request, userId)
+        +SetTourImageAsync(tourId, userId, path)
+        +DeleteTourAsync(tourId, userId)
+        -MapToResponse(tour)
+    }
+    TourService --> TourRepository
+    TourService --> IOpenRouteServiceClient
+    TourService --> IChildFriendlinessClassifier
+    TourService --> ITransportSpeedResolver
+
+    class TourImportExportService {
+        +ExportToursAsync(userId)
+        +ImportToursAsync(userId, dtos)
+    }
+    TourImportExportService --> TourRepository
+    TourImportExportService --> IUnitOfWork
+</div>
+
+<h3>9.3 Sequence Diagram – Full-Text Search</h3>
+<div class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant TS as TourSearch View
+    participant VM as TourListViewModel
+    participant AX as Axios Client
+    participant TC as ToursController
+    participant SVC as TourService
+    participant REPO as TourRepository
+    participant DB as PostgreSQL
+
+    U->>TS: types query, clicks Search
+    TS->>VM: vm.search(query)
+    VM->>AX: GET /api/tours/search?q=query
+    AX->>AX: attach Bearer token via interceptor
+    AX->>TC: GET /api/tours/search?q=query
+    TC->>TC: extract userId from JWT claims
+    TC->>SVC: SearchToursAsync(userId, query)
+    SVC->>REPO: GetByUserIdAsync(userId)
+    REPO->>DB: SELECT Tours, Include TourLogs, WHERE UserId equals userId
+    DB-->>REPO: Tour rows plus TourLogs
+    REPO-->>SVC: list of Tour
+    Note over SVC: MapToResponse per tour using Strategy for popularity and child-friendliness
+    Note over SVC: filter in-memory across name, description, from, to, log comments, transport type, popularity, child-friendliness (case-insensitive)
+    SVC-->>TC: list of TourResponse
+    TC-->>AX: 200 OK with TourResponse array
+    AX-->>VM: data as Tour array
+    VM->>VM: set this.tours, call notify
+    VM-->>TS: re-render via useSyncExternalStore
+    TS-->>U: updated tour list rendered
+</div>
+
+<!-- 10 UNIT TESTS -->
+<div class="pagebreak"></div>
+<h2>10. Unit Tests – Selection &amp; Justification</h2>
+<p>
+  The test suite contains <strong>54 NUnit tests</strong>, all using Moq to isolate the class under test from its
+  dependencies (repositories, HTTP clients, Unit of Work). Run with <code>dotnet test</code> inside
+  <code>backend/</code>; all 54 pass.
+</p>
+<table>
+  <thead><tr><th>Test Class</th><th>What is tested</th><th>Why critical</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>AuthServiceTests</td>
+      <td>Register success/duplicate email/duplicate username/weak password; login success/wrong password/unknown email</td>
+      <td>Authentication is the security boundary of the whole app — bugs here allow account takeover or data leakage.</td>
+    </tr>
+    <tr>
+      <td>TourServiceTests</td>
+      <td>CRUD ownership checks; full-text search across name/log-comments/computed child-friendliness; image-set ownership check; coordinate lookup for weather; haversine fallback when ORS directions fail</td>
+      <td>Contains the core business logic, including the per-user ownership guard that prevents cross-account data access, and the search behaviour the spec explicitly requires to cover computed attributes.</td>
+    </tr>
+    <tr>
+      <td>TourLogServiceTests</td>
+      <td>Create/validate difficulty &amp; rating ranges; ownership-scoped get/delete</td>
+      <td>Logs drive the computed popularity/child-friendliness values — invalid values would silently corrupt them.</td>
+    </tr>
+    <tr>
+      <td>TourImportExportServiceTests</td>
+      <td>Export mapping; import adds tours+logs in one Unit-of-Work call; rows with missing required fields are skipped; unknown transport type defaults safely; no-op when nothing valid to import</td>
+      <td>Import is the one place the app writes multiple related entities from untrusted (file-based) input — must not partially commit or crash on malformed data.</td>
+    </tr>
+    <tr>
+      <td>ChildFriendlinessClassifierTests</td>
+      <td>Unknown (no logs), Yes/Moderate/No thresholds</td>
+      <td>This was a hardcoded stub at the intermediate stage; tests pin down the now-real behaviour.</td>
+    </tr>
+    <tr>
+      <td>TransportSpeedResolverTests</td>
+      <td>Correct speed per <code>TransportType</code>; fallback when no strategy registered</td>
+      <td>Feeds the haversine fallback estimate — a wrong speed silently produces a wrong ETA with no error.</td>
+    </tr>
+    <tr>
+      <td>GeoUtilsTests</td>
+      <td>Haversine distance for identical points and a known city pair</td>
+      <td>Used directly in the route-estimation fallback; an off-by-factor bug (e.g. radians vs degrees) would be invisible without a known-distance assertion.</td>
+    </tr>
+    <tr>
+      <td>FileImageStorageTests</td>
+      <td>Valid JPEG saved and path returned; unsupported MIME type rejected; oversized file rejected; missing content-type rejected</td>
+      <td>The only validation standing between an authenticated user and arbitrary file writes on the server's filesystem.</td>
+    </tr>
+    <tr>
+      <td>WeatherServiceTests</td>
+      <td>Successful mapping; unknown weather code; upstream client returning null</td>
+      <td>Wraps an external, unauthenticated third-party API — must degrade to <code>null</code> rather than throwing.</td>
+    </tr>
+  </tbody>
+</table>
+<div class="note">
+  <strong>Test strategy:</strong> every service is tested against mocked interfaces (repositories, Unit of Work,
+  HTTP clients) rather than a real database or network call, so the suite runs in well under a second and a failure
+  always points at the service logic itself, not infrastructure.
+</div>
+
+<!-- 11 MUST HAVES -->
+<h2>11. Must-Haves Compliance Matrix</h2>
+<table>
+  <thead><tr><th>Must-Have</th><th>Status</th><th>Evidence</th></tr></thead>
+  <tbody>
+    <tr><td>Web-framework for the frontend</td><td><span class="badge-ok">MET</span></td><td>React 18 + TypeScript, with an explicit MVVM layer (Section 4) per course clarification</td></tr>
+    <tr><td>Middleware backend</td><td><span class="badge-ok">MET</span></td><td>ASP.NET Core 9/10 Web API</td></tr>
+    <tr><td>Layer-based architecture</td><td><span class="badge-ok">MET</span></td><td>API → BL → DAL, one-way dependencies (TourPlanner.API/BL/DAL projects)</td></tr>
+    <tr><td>At least one design pattern</td><td><span class="badge-ok">MET</span></td><td>Repository, DI, DTO, Adapter, Strategy (x2), Unit of Work, MVVM — see Section 5</td></tr>
+    <tr><td>O/R-mapper into PostgreSQL</td><td><span class="badge-ok">MET</span></td><td>EF Core + Npgsql, code-first migrations</td></tr>
+    <tr><td>Configuration kept separate from source</td><td><span class="badge-ok">MET</span></td><td><code>appsettings.json</code> git-ignored; secrets via <code>.env</code> (not committed)</td></tr>
+    <tr><td>OpenRouteService.org + Leaflet integrated</td><td><span class="badge-ok">MET</span></td><td><code>OpenRouteServiceClient</code>, <code>RouteMap.tsx</code></td></tr>
+    <tr><td>log4j/log4net logging</td><td><span class="badge-ok">MET</span></td><td>log4net configured via <code>log4net.config</code>, used in all services</td></tr>
+    <tr><td>20+ unit tests</td><td><span class="badge-ok">MET</span></td><td>54 NUnit tests, all passing</td></tr>
+  </tbody>
+</table>
+
+<!-- 12 NFR -->
+<h2>12. Non-Functional Requirements Compliance</h2>
+<table>
+  <thead><tr><th>Requirement</th><th>Status</th><th>Evidence</th></tr></thead>
+  <tbody>
+    <tr><td>Layers only call methods of the immediate layer below (or own methods)</td><td><span class="badge-ok">MET</span></td><td>Controllers (API) call only BL service interfaces; services (BL) call only DAL repository/UnitOfWork interfaces or other BL collaborators (Adapters, Strategies); no controller touches <code>DbContext</code> or EF types directly.</td></tr>
+    <tr><td>Layers define their own exceptions, no implementation-specific exceptions</td><td><span class="badge-ok">MET</span></td><td><code>TourPlanner.BL/Exceptions/DomainExceptions.cs</code> — see Section 5.</td></tr>
+    <tr><td>Uses the OpenRouteServices.org Directions API for tour retrieval</td><td><span class="badge-ok">MET</span></td><td><code>OpenRouteServiceClient.GetDirectionsAsync</code>, called from <code>TourService.FetchRouteDataAsync</code> on create/update.</td></tr>
+    <tr><td>Uses Leaflet for the map</td><td><span class="badge-ok">MET</span></td><td><code>RouteMap.tsx</code> (react-leaflet), rendered on the Tour Detail page.</td></tr>
+    <tr><td>All tour data (except image data) is stored in the database</td><td><span class="badge-ok">MET</span></td><td><code>Tour</code>/<code>TourLog</code>/<code>User</code> EF entities in PostgreSQL; only the uploaded image bytes live on the filesystem (<code>RouteImagePath</code> stores just the reference).</td></tr>
+    <tr><td>All configuration information is stored in configuration (not in code)</td><td><span class="badge-ok">MET</span></td><td>DB connection string, JWT secret, ORS API key, and image storage base path all come from <code>appsettings.json</code>/environment variables, none committed (see Section 2, secrets item).</td></tr>
+    <tr><td>Does not allow for SQL injection</td><td><span class="badge-ok">MET</span></td><td>All data access goes through EF Core LINQ; no raw/string-concatenated SQL anywhere in the codebase.</td></tr>
+    <tr><td>Logs exceptions, errors, and other useful technical information</td><td><span class="badge-ok">MET</span></td><td>log4net <code>Log.Info</code>/<code>Log.Warn</code>/<code>Log.Error</code> calls in every service around successful operations, rejected operations, ownership violations, and external API failures.</td></tr>
+    <tr><td>Quality of unit tests (usefulness, no duplicates)</td><td><span class="badge-ok">MET</span></td><td>54 tests, each asserting a distinct behaviour (happy path, validation boundary, ownership boundary, or external-dependency failure mode) — see Section 10.</td></tr>
+  </tbody>
+</table>
+
+<!-- 13 TIME TRACKING -->
+<h2>13. Time Tracking &amp; Repository Link</h2>
+<div class="note">Update actual hours below before submission.</div>
+<table>
+  <thead><tr><th>Task</th><th>Student 1 (h)</th><th>Student 2 (h)</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Intermediate submission (carried over)</td><td>39</td><td>36</td><td>See protocol-intermediate.html</td></tr>
+    <tr><td>MVVM layer for React frontend</td><td>4</td><td>3</td><td>ViewModel base class, hook, 3 ViewModels, page/component rewrites</td></tr>
+    <tr><td>Full-text search (incl. computed attributes)</td><td>2</td><td>1</td><td>Service-layer implementation + tests</td></tr>
+    <tr><td>Import / export with Unit of Work</td><td>3</td><td>2</td><td>DTOs, service, controller endpoints, tests</td></tr>
+    <tr><td>Image upload (storage service, validation, static files)</td><td>2</td><td>2</td><td>FileImageStorage, controller endpoint, Vite/Nginx proxy</td></tr>
+    <tr><td>Child-friendliness + transport-speed Strategy patterns</td><td>1</td><td>2</td><td>Replaces the "N/A" stub, fixes the OCP feedback item</td></tr>
+    <tr><td>Unique feature: weather widget (Open-Meteo)</td><td>2</td><td>1</td><td>Backend client/service/endpoint + frontend widget</td></tr>
+    <tr><td>Backend validation, secrets cleanup, EF migration</td><td>2</td><td>1</td><td>DataAnnotations, docker-compose/.env, AddTourCoordinates migration</td></tr>
+    <tr><td>New unit tests (32 added)</td><td>3</td><td>3</td><td>Strategies, import/export, image storage, weather, search</td></tr>
+    <tr><td>Protocol documentation (this document)</td><td>2</td><td>2</td><td></td></tr>
+    <tr><td style="font-weight:700">Total (final phase)</td><td style="font-weight:700">21</td><td style="font-weight:700">17</td><td></td></tr>
+    <tr><td style="font-weight:700">Grand total</td><td style="font-weight:700">60</td><td style="font-weight:700">53</td><td></td></tr>
+  </tbody>
+</table>
+
+<h3>Git Repository</h3>
+<p>
+  Source code: <a href="https://github.com/drumnadrochit/IH-ss26swen2team6">https://github.com/Noppin/ss26swen2team6</a>
+</p>
+
+<hr style="margin: 30px 0; border-color: #ccc;" />
+<p style="text-align:center; color:#888; font-size:11px;">
+  Tour Planner – Final Submission Protocol | 4th Semester Software Engineering | June 2026
+</p>
+
+</div>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+</script>
+</body>
+</html>

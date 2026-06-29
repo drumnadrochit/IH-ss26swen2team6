@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { TourLog, CreateTourLogRequest } from '../../types/tourLog.types';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 interface Props {
   initial?: TourLog;
@@ -45,17 +46,16 @@ export default function TourLogForm({ initial, onSubmit, onCancel }: Props) {
         rating: ratingNum,
       });
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg ?? 'Failed to save log.');
+      setError(getApiErrorMessage(err, 'Failed to save log.'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card flex flex-col gap-3" style={{ marginBottom: 16 }}>
+    <form onSubmit={handleSubmit} className="card flex flex-col gap-3 mb-4">
       <h4 style={{ fontWeight: 600 }}>{initial ? 'Edit Log' : 'Add Log'}</h4>
-      <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid-2col">
         <div>
           <label className="label">Date & Time *</label>
           <input type="datetime-local" value={dateTime} onChange={(e) => setDateTime(e.target.value)} />
@@ -82,7 +82,7 @@ export default function TourLogForm({ initial, onSubmit, onCancel }: Props) {
         <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder="How was it?" style={{ resize: 'vertical' }} />
       </div>
       {error && <p className="error">{error}</p>}
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="flex-row gap-2">
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Saving...' : (initial ? 'Update' : 'Add Log')}
         </button>

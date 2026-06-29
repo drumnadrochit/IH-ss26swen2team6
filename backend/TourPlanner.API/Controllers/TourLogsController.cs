@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TourPlanner.BL.DTOs;
+using TourPlanner.BL.Exceptions;
 using TourPlanner.BL.Services.Interfaces;
 
 namespace TourPlanner.API.Controllers;
@@ -28,7 +29,7 @@ public class TourLogsController : ControllerBase
             var logs = await _logService.GetLogsAsync(tourId, UserId);
             return Ok(logs);
         }
-        catch (KeyNotFoundException) { return NotFound(); }
+        catch (EntityNotFoundException) { return NotFound(); }
     }
 
     [HttpPost]
@@ -39,8 +40,8 @@ public class TourLogsController : ControllerBase
             var log = await _logService.CreateLogAsync(tourId, request, UserId);
             return StatusCode(201, log);
         }
-        catch (KeyNotFoundException) { return NotFound(); }
-        catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (EntityNotFoundException) { return NotFound(); }
+        catch (DomainValidationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpPut("{logId:guid}")]
@@ -51,9 +52,9 @@ public class TourLogsController : ControllerBase
             var log = await _logService.UpdateLogAsync(tourId, logId, request, UserId);
             return Ok(log);
         }
-        catch (KeyNotFoundException) { return NotFound(); }
-        catch (UnauthorizedAccessException) { return Forbid(); }
-        catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (EntityNotFoundException) { return NotFound(); }
+        catch (ForbiddenAccessException) { return Forbid(); }
+        catch (DomainValidationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpDelete("{logId:guid}")]
@@ -64,7 +65,7 @@ public class TourLogsController : ControllerBase
             await _logService.DeleteLogAsync(tourId, logId, UserId);
             return NoContent();
         }
-        catch (KeyNotFoundException) { return NotFound(); }
-        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (EntityNotFoundException) { return NotFound(); }
+        catch (ForbiddenAccessException) { return Forbid(); }
     }
 }

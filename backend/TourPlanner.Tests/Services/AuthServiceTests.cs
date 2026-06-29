@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Moq;
 using NUnit.Framework;
+using TourPlanner.BL.Exceptions;
 using TourPlanner.BL.DTOs;
 using TourPlanner.BL.Services;
 using TourPlanner.DAL.Entities;
@@ -50,7 +51,7 @@ public class AuthServiceTests
         var existingUser = new User { Email = "existing@example.com" };
         _userRepoMock.Setup(r => r.GetByEmailAsync("existing@example.com")).ReturnsAsync(existingUser);
 
-        Assert.ThrowsAsync<InvalidOperationException>(() =>
+        Assert.ThrowsAsync<ConflictException>(() =>
             _authService.RegisterAsync(new RegisterRequest("newuser", "existing@example.com", "password123")));
     }
 
@@ -60,21 +61,21 @@ public class AuthServiceTests
         _userRepoMock.Setup(r => r.GetByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
         _userRepoMock.Setup(r => r.GetByUsernameAsync("existinguser")).ReturnsAsync(new User { Username = "existinguser" });
 
-        Assert.ThrowsAsync<InvalidOperationException>(() =>
+        Assert.ThrowsAsync<ConflictException>(() =>
             _authService.RegisterAsync(new RegisterRequest("existinguser", "new@example.com", "password123")));
     }
 
     [Test]
     public void Register_WithShortPassword_ThrowsArgumentException()
     {
-        Assert.ThrowsAsync<ArgumentException>(() =>
+        Assert.ThrowsAsync<DomainValidationException>(() =>
             _authService.RegisterAsync(new RegisterRequest("user", "user@test.com", "123")));
     }
 
     [Test]
     public void Register_WithEmptyUsername_ThrowsArgumentException()
     {
-        Assert.ThrowsAsync<ArgumentException>(() =>
+        Assert.ThrowsAsync<DomainValidationException>(() =>
             _authService.RegisterAsync(new RegisterRequest("", "user@test.com", "password123")));
     }
 
@@ -98,7 +99,7 @@ public class AuthServiceTests
         var user = new User { Email = "test@example.com", PasswordHash = hash };
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com")).ReturnsAsync(user);
 
-        Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        Assert.ThrowsAsync<InvalidCredentialsException>(() =>
             _authService.LoginAsync(new LoginRequest("test@example.com", "wrongpassword")));
     }
 
@@ -107,7 +108,7 @@ public class AuthServiceTests
     {
         _userRepoMock.Setup(r => r.GetByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
 
-        Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        Assert.ThrowsAsync<InvalidCredentialsException>(() =>
             _authService.LoginAsync(new LoginRequest("nobody@example.com", "password123")));
     }
 }

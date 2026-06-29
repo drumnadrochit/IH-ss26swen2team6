@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using TourPlanner.BL.DTOs;
+using TourPlanner.BL.Exceptions;
 using TourPlanner.BL.Services.Interfaces;
 using TourPlanner.DAL.Entities;
 using TourPlanner.DAL.Repositories.Interfaces;
@@ -26,19 +27,25 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Username))
-            throw new ArgumentException("Username is required.");
+            throw new DomainValidationException("Username is required.");
         if (string.IsNullOrWhiteSpace(request.Email))
-            throw new ArgumentException("Email is required.");
+            throw new DomainValidationException("Email is required.");
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
-            throw new ArgumentException("Password must be at least 6 characters.");
+            throw new DomainValidationException("Password must be at least 6 characters.");
 
         var existingEmail = await _userRepo.GetByEmailAsync(request.Email);
         if (existingEmail != null)
-            throw new InvalidOperationException("Email already registered.");
+        {
+            Log.Warn($"Registration rejected: email already registered ({request.Email}).");
+            throw new ConflictException("Email already registered.");
+        }
 
         var existingUser = await _userRepo.GetByUsernameAsync(request.Username);
         if (existingUser != null)
-            throw new InvalidOperationException("Username already taken.");
+        {
+            Log.Warn($"Registration rejected: username already taken ({request.Username}).");
+            throw new ConflictException("Username already taken.");
+        }
 
         var user = new User
         {
@@ -57,7 +64,7 @@ public class AuthService : IAuthService
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
             Log.Warn($"Failed login attempt for: {request.Email}");
-            throw new UnauthorizedAccessException("Invalid credentials.");
+            throw new InvalidCredentialsException("Invalid credentials.");
         }
         Log.Info($"User logged in: {user.Email}");
         return new AuthResponse(GenerateJwt(user), user.Id, user.Username, user.Email);
