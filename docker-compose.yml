@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: tourplanner
       POSTGRES_USER: touruser
-      POSTGRES_PASSWORD: tourpass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a .env file (see .env.example)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -25,13 +25,16 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=tourplanner;Username=touruser;Password=tourpass"
-      JwtSettings__SecretKey: "change-me-in-production-min-32-chars!!"
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=tourplanner;Username=touruser;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a .env file (see .env.example)}"
+      JwtSettings__SecretKey: "${JWT_SECRET_KEY:?Set JWT_SECRET_KEY (min 32 chars) in a .env file (see .env.example)}"
       JwtSettings__Issuer: "TourPlanner"
       JwtSettings__Audience: "TourPlannerUsers"
-      OpenRouteService__ApiKey: "${ORS_API_KEY:-eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjJkOTYzZTQzMDk5OTQyYjBiNDkxOTBjNWNkNjhkMzQ4IiwiaCI6Im11cm11cjY0In0=}"
+      OpenRouteService__ApiKey: "${ORS_API_KEY:?Set ORS_API_KEY in a .env file (see .env.example)}"
       OpenRouteService__BaseUrl: "https://api.openrouteservice.org"
+      Storage__BasePath: "/app/uploaded_images"
       AllowedOrigins: "http://localhost"
+    volumes:
+      - uploaded_images:/app/uploaded_images
 
   frontend:
     build:
@@ -44,3 +47,4 @@ services:
 
 volumes:
   postgres_data:
+  uploaded_images:

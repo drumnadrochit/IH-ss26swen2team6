@@ -1,6 +1,9 @@
 using TourPlanner.BL.DTOs;
+using TourPlanner.BL.Exceptions;
 using TourPlanner.BL.HttpClients;
 using TourPlanner.BL.Services.Interfaces;
+using TourPlanner.BL.Strategies;
+using TourPlanner.BL.Utils;
 using TourPlanner.DAL.Entities;
 using TourPlanner.DAL.Repositories.Interfaces;
 using log4net;
@@ -12,11 +15,19 @@ public class TourService : ITourService
     private static readonly ILog Log = LogManager.GetLogger(typeof(TourService));
     private readonly ITourRepository _tourRepo;
     private readonly IOpenRouteServiceClient _orsClient;
+    private readonly IChildFriendlinessClassifier _childFriendlinessClassifier;
+    private readonly ITransportSpeedResolver _speedResolver;
 
-    public TourService(ITourRepository tourRepo, IOpenRouteServiceClient orsClient)
+    public TourService(
+        ITourRepository tourRepo,
+        IOpenRouteServiceClient orsClient,
+        IChildFriendlinessClassifier childFriendlinessClassifier,
+        ITransportSpeedResolver speedResolver)
     {
         _tourRepo = tourRepo;
         _orsClient = orsClient;
+        _childFriendlinessClassifier = childFriendlinessClassifier;
+        _speedResolver = speedResolver;
     }
 
     public async Task<IEnumerable<TourResponse>> GetToursAsync(Guid userId)
@@ -32,12 +43,46 @@ public class TourService : ITourService
         return MapToResponse(tour);
     }
 
+    public async Task<IEnumerable<TourResponse>> SearchToursAsync(Guid userId, string query)
+    {
+        var tours = await _tourRepo.GetByUserIdAsync(userId);
+        var term = query.Trim();
+        if (term.Length == 0) return tours.Select(MapToResponse);
+
+        return tours
+            .Select(t => (Tour: t, Response: MapToResponse(t)))
+            .Where(x => MatchesQuery(x.Tour, x.Response, term))
+            .Select(x => x.Response);
+    }
+
+    // Full-text search across tour fields, tour-log comments, and computed attributes
+    // (popularity, child-friendliness) as required by the spec.
+    private static bool MatchesQuery(Tour tour, TourResponse response, string term)
+        =>
+        Contains(tour.Name, term) ||
+        Contains(tour.Description, term) ||
+        Contains(tour.From, term) ||
+        Contains(tour.To, term) ||
+        Contains(response.TransportType, term) ||
+        Contains(response.ChildFriendliness, term) ||
+        Contains(response.Popularity.ToString(), term) ||
+        (tour.TourLogs?.Any(l => Contains(l.Comment, term)) ?? false);
+
+    private static bool Contains(string? value, string term)
+        => value != null && value.Contains(term, StringComparison.OrdinalIgnoreCase);
+
     public async Task<TourResponse> CreateTourAsync(CreateTourRequest request, Guid userId)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
-            throw new ArgumentException("Tour name is required.");
+        {
+            Log.Warn($"CreateTour rejected for user {userId}: missing name.");
+            throw new DomainValidationException("Tour name is required.");
+        }
         if (string.IsNullOrWhiteSpace(request.From) || string.IsNullOrWhiteSpace(request.To))
-            throw new ArgumentException("From and To locations are required.");
+        {
+            Log.Warn($"CreateTour rejected for user {userId}: missing From/To.");
+            throw new DomainValidationException("From and To locations are required.");
+        }
 
         var tour = new Tour
         {
@@ -49,9 +94,6 @@ public class TourService : ITourService
             UserId = userId
         };
 
-        if (request.ImagePath != null)
-            tour.RouteImagePath = request.ImagePath;
-
         await FetchRouteDataAsync(tour);
         await _tourRepo.AddAsync(tour);
         Log.Info($"Tour created: {tour.Name} (id={tour.Id})");
@@ -60,10 +102,7 @@ public class TourService : ITourService
 
     public async Task<TourResponse> UpdateTourAsync(Guid tourId, UpdateTourRequest request, Guid userId)
     {
-        var tour = await _tourRepo.GetByIdAsync(tourId)
-            ?? throw new KeyNotFoundException("Tour not found.");
-        if (tour.UserId != userId)
-            throw new UnauthorizedAccessException("Access denied.");
+        var tour = await GetOwnedTourOrThrowAsync(tourId, userId);
 
         bool routeChanged = tour.From != request.From || tour.To != request.To || tour.TransportType != request.TransportType;
         tour.Name = request.Name;
@@ -73,9 +112,6 @@ public class TourService : ITourService
         tour.TransportType = request.TransportType;
         tour.UpdatedAt = DateTime.UtcNow;
 
-        if (request.ImagePath != null)
-            tour.RouteImagePath = request.ImagePath;
-
         if (routeChanged)
             await FetchRouteDataAsync(tour);
 
@@ -84,14 +120,46 @@ public class TourService : ITourService
         return MapToResponse(tour);
     }
 
+    public async Task<TourResponse> SetTourImageAsync(Guid tourId, Guid userId, string imagePath)
+    {
+        var tour = await GetOwnedTourOrThrowAsync(tourId, userId);
+
+        tour.RouteImagePath = imagePath;
+        tour.UpdatedAt = DateTime.UtcNow;
+        await _tourRepo.UpdateAsync(tour);
+        Log.Info($"Tour image updated: {tour.Id}");
+        return MapToResponse(tour);
+    }
+
+    public async Task<(double Lat, double Lon)?> GetTourStartCoordinatesAsync(Guid tourId, Guid userId)
+    {
+        var tour = await _tourRepo.GetByIdAsync(tourId);
+        if (tour == null || tour.UserId != userId) return null;
+        if (tour.FromLat == null || tour.FromLon == null) return null;
+        return (tour.FromLat.Value, tour.FromLon.Value);
+    }
+
     public async Task DeleteTourAsync(Guid tourId, Guid userId)
     {
-        var tour = await _tourRepo.GetByIdAsync(tourId)
-            ?? throw new KeyNotFoundException("Tour not found.");
-        if (tour.UserId != userId)
-            throw new UnauthorizedAccessException("Access denied.");
+        await GetOwnedTourOrThrowAsync(tourId, userId);
         await _tourRepo.DeleteAsync(tourId);
         Log.Info($"Tour deleted: {tourId}");
+    }
+
+    private async Task<Tour> GetOwnedTourOrThrowAsync(Guid tourId, Guid userId)
+    {
+        var tour = await _tourRepo.GetByIdAsync(tourId);
+        if (tour == null)
+        {
+            Log.Warn($"Tour {tourId} not found.");
+            throw new EntityNotFoundException("Tour not found.");
+        }
+        if (tour.UserId != userId)
+        {
+            Log.Warn($"User {userId} attempted to access tour {tourId} owned by {tour.UserId}.");
+            throw new ForbiddenAccessException("Access denied.");
+        }
+        return tour;
     }
 
     private async Task FetchRouteDataAsync(Tour tour)
@@ -100,6 +168,18 @@ public class TourService : ITourService
         {
             var fromCoords = await _orsClient.GeocodeAsync(tour.From);
             var toCoords = await _orsClient.GeocodeAsync(tour.To);
+
+            if (fromCoords.HasValue)
+            {
+                tour.FromLon = fromCoords.Value.lon;
+                tour.FromLat = fromCoords.Value.lat;
+            }
+            if (toCoords.HasValue)
+            {
+                tour.ToLon = toCoords.Value.lon;
+                tour.ToLat = toCoords.Value.lat;
+            }
+
             if (fromCoords.HasValue && toCoords.HasValue)
             {
                 var route = await _orsClient.GetDirectionsAsync(
@@ -111,36 +191,34 @@ public class TourService : ITourService
                     tour.Distance = route.Value.distance;
                     tour.EstimatedTime = route.Value.duration;
                 }
-
-                // Only set static map URL if user did not upload a custom image
-                if (tour.RouteImagePath == null)
+                else
                 {
-                    double midLat = (fromCoords.Value.lat + toCoords.Value.lat) / 2.0;
-                    double midLon = (fromCoords.Value.lon + toCoords.Value.lon) / 2.0;
-                    tour.RouteImagePath = $"https://staticmap.openstreetmap.de/staticmap.php" +
-                        $"?center={midLat:F4},{midLon:F4}&zoom=8&size=400x250" +
-                        $"&markers={fromCoords.Value.lat:F4},{fromCoords.Value.lon:F4},red-pushpin" +
-                        $"|{toCoords.Value.lat:F4},{toCoords.Value.lon:F4},green-pushpin";
+                    // Directions API failed but we still have coordinates - approximate via Strategy pattern.
+                    Log.Warn($"ORS directions unavailable for tour '{tour.Name}', falling back to haversine estimate.");
+                    var distanceKm = GeoUtils.HaversineKm(
+                        fromCoords.Value.lat, fromCoords.Value.lon,
+                        toCoords.Value.lat, toCoords.Value.lon);
+                    var speedKmh = _speedResolver.GetAverageSpeedKmh(tour.TransportType);
+                    tour.Distance = Math.Round(distanceKm, 2);
+                    tour.EstimatedTime = (int)Math.Round(distanceKm / speedKmh * 60);
                 }
             }
         }
         catch (Exception ex)
         {
-            Log.Warn($"Could not fetch route data: {ex.Message}");
+            Log.Error($"Could not fetch route data for tour '{tour.Name}': {ex.Message}", ex);
         }
     }
 
-    private static TourResponse MapToResponse(Tour tour)
+    private TourResponse MapToResponse(Tour tour)
     {
         var logs = tour.TourLogs?.ToList() ?? [];
         int popularity = logs.Count;
-        string childFriendliness = logs.Count == 0 ? "Unknown" : ComputeChildFriendliness(logs);
+        string childFriendliness = _childFriendlinessClassifier.Classify(logs);
         return new TourResponse(
             tour.Id, tour.Name, tour.Description, tour.From, tour.To,
             tour.TransportType.ToString(), tour.Distance, tour.EstimatedTime,
             tour.RouteImagePath, popularity, childFriendliness,
             tour.CreatedAt, tour.UpdatedAt);
     }
-
-    private static string ComputeChildFriendliness(List<TourLog> logs) => "N/A";
 }

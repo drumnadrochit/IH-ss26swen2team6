@@ -37,3 +37,11 @@ export interface RouteData {
   duration: number;
   coordinates: [number, number][] | null;
 }
+
+export interface WeatherData {
+  temperatureCelsius: number;
+  windSpeedKmh: number;
+  weatherCode: number;
+  description: string;
+  isDay: boolean;
+}

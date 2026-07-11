@@ -7,9 +7,12 @@ using Microsoft.IdentityModel.Tokens;
 using TourPlanner.BL.HttpClients;
 using TourPlanner.BL.Services;
 using TourPlanner.BL.Services.Interfaces;
+using TourPlanner.BL.Strategies;
 using TourPlanner.DAL.Context;
 using TourPlanner.DAL.Repositories;
 using TourPlanner.DAL.Repositories.Interfaces;
+using TourPlanner.DAL.UnitOfWork;
+using Microsoft.Extensions.FileProviders;
 
 // Configure log4net
 var logRepo = LogManager.GetRepository(System.Reflection.Assembly.GetEntryAssembly()!);
@@ -30,15 +33,35 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITourRepository, TourRepository>();
 builder.Services.AddScoped<ITourLogRepository, TourLogRepository>();
 
+// Unit of Work - commits multi-entity operations (e.g. import) in a single transaction
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Strategy pattern: child-friendliness classification and per-transport-type average speed
+builder.Services.AddSingleton<IChildFriendlinessClassifier, DefaultChildFriendlinessClassifier>();
+builder.Services.AddSingleton<ITransportSpeedStrategy, BikeSpeedStrategy>();
+builder.Services.AddSingleton<ITransportSpeedStrategy, HikeSpeedStrategy>();
+builder.Services.AddSingleton<ITransportSpeedStrategy, RunningSpeedStrategy>();
+builder.Services.AddSingleton<ITransportSpeedStrategy, VacationSpeedStrategy>();
+builder.Services.AddSingleton<ITransportSpeedResolver, TransportSpeedResolver>();
+
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITourService, TourService>();
 builder.Services.AddScoped<ITourLogService, TourLogService>();
 builder.Services.AddScoped<IRouteService, RouteService>();
+builder.Services.AddScoped<ITourImportExportService, TourImportExportService>();
+builder.Services.AddScoped<IWeatherService, WeatherService>();
+
+// Image storage - images live on the filesystem, not in the database
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.Section));
+builder.Services.AddScoped<IImageStorage, FileImageStorage>();
 
 // OpenRouteService HTTP Client
 builder.Services.Configure<OrsOptions>(builder.Configuration.GetSection(OrsOptions.Section));
 builder.Services.AddHttpClient<IOpenRouteServiceClient, OpenRouteServiceClient>();
+
+// Open-Meteo HTTP Client (unique feature: current weather at tour start location, no API key required)
+builder.Services.AddHttpClient<IWeatherClient, OpenMeteoClient>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["JwtSettings:SecretKey"]
@@ -97,27 +120,20 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+var storageBasePath = builder.Configuration[$"{StorageOptions.Section}:BasePath"] ?? "uploaded_images";
+var storageFullPath = Path.IsPathRooted(storageBasePath)
+    ? storageBasePath
+    : Path.Combine(app.Environment.ContentRootPath, storageBasePath);
+Directory.CreateDirectory(storageFullPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(storageFullPath),
+    RequestPath = "/uploads"
+});
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Serve uploaded images at /images/{filename}
-var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
-Directory.CreateDirectory(uploadsPath);
-var mimeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
-mimeProvider.Mappings[".png"] = "image/png";
-mimeProvider.Mappings[".jpg"] = "image/jpeg";
-mimeProvider.Mappings[".jpeg"] = "image/jpeg";
-mimeProvider.Mappings[".gif"] = "image/gif";
-mimeProvider.Mappings[".webp"] = "image/webp";
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
-    RequestPath = "/images",
-    ContentTypeProvider = mimeProvider
-});
-
 app.MapControllers();
 
 log.Info("TourPlanner API starting...");

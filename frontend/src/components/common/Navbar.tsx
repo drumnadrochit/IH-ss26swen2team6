@@ -11,20 +11,14 @@ export default function Navbar() {
   };
 
   return (
-    <nav style={{
-      background: '#1e3a5f', color: '#fff', padding: '0 24px',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56
-    }}>
-      <Link to="/" style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>
+    <nav className="navbar flex-row items-center justify-between">
+      <Link to="/" className="navbar-brand">
         Tour Planner
       </Link>
       {user && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 14 }}>Hello, {user.username}</span>
-          <button
-            onClick={handleLogout}
-            style={{ background: '#dc2626', color: '#fff', padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13 }}
-          >
+        <div className="flex-row items-center gap-4">
+          <span className="text-sm">Hello, {user.username}</span>
+          <button className="btn-danger btn-sm" onClick={handleLogout}>
             Logout
           </button>
         </div>

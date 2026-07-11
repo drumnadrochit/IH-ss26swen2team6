@@ -1,80 +1,38 @@
-import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { registerUser } from '../../api/auth.api';
-import { useAuthStore } from '../../store/authStore';
+import { AuthViewModel } from '../../viewmodels/AuthViewModel';
+import { useViewModel } from '../../viewmodels/ViewModel';
 
 export default function RegisterForm() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const login = useAuthStore((s) => s.login);
+  const vm = useViewModel(() => new AuthViewModel());
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    if (!username || !email || !password) {
-      setError('All fields are required.');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await registerUser({ username, email, password });
-      login(res.accessToken, { userId: res.userId, username: res.username, email: res.email });
-      navigate('/');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg ?? 'Registration failed.');
-    } finally {
-      setLoading(false);
-    }
+    if (await vm.register()) navigate('/');
   };
 
   return (
     <form onSubmit={handleSubmit} style={{ maxWidth: 380, margin: '60px auto' }}>
-      <div className='card flex flex-col gap-4'>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Create Account</h2>
+      <div className="card flex flex-col gap-4">
+        <h2 className="detail-title">Create Account</h2>
         <div>
-          <label className='label'>Username</label>
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder='johndoe'
-          />
+          <label className="label">Username</label>
+          <input value={vm.username} onChange={(e) => vm.setUsername(e.target.value)} placeholder="johndoe" />
         </div>
         <div>
-          <label className='label'>Email</label>
-          <input
-            type='email'
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder='you@example.com'
-          />
+          <label className="label">Email</label>
+          <input type="email" value={vm.email} onChange={(e) => vm.setEmail(e.target.value)} placeholder="you@example.com" />
         </div>
         <div>
-          <label className='label'>Password</label>
-          <input
-            type='password'
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder='min. 6 characters'
-          />
+          <label className="label">Password</label>
+          <input type="password" value={vm.password} onChange={(e) => vm.setPassword(e.target.value)} placeholder="min. 8 characters" />
         </div>
-        {error && <p className='error'>{error}</p>}
-        <button type='submit' className='btn-primary w-full' disabled={loading}>
-          {loading ? 'Creating account...' : 'Register'}
+        {vm.error && <p className="error">{vm.error}</p>}
+        <button type="submit" className="btn-primary w-full" disabled={vm.loading}>
+          {vm.loading ? 'Creating account...' : 'Register'}
         </button>
-        <p style={{ textAlign: 'center', fontSize: 13, color: '#6b7280' }}>
-          Already have an account?{' '}
-          <Link to='/login' style={{ color: '#2563eb' }}>
-            Sign in
-          </Link>
+        <p className="text-sm text-muted text-center">
+          Already have an account? <Link to="/login" className="link-accent">Sign in</Link>
         </p>
       </div>
     </form>

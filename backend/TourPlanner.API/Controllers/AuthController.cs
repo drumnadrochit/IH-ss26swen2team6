@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TourPlanner.BL.DTOs;
+using TourPlanner.BL.Exceptions;
 using TourPlanner.BL.Services.Interfaces;
 
 namespace TourPlanner.API.Controllers;
@@ -20,8 +21,8 @@ public class AuthController : ControllerBase
             var result = await _authService.RegisterAsync(request);
             return Ok(result);
         }
-        catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
-        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+        catch (DomainValidationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (ConflictException ex) { return Conflict(new { message = ex.Message }); }
     }
 
     [HttpPost("login")]
@@ -32,6 +33,6 @@ public class AuthController : ControllerBase
             var result = await _authService.LoginAsync(request);
             return Ok(result);
         }
-        catch (UnauthorizedAccessException ex) { return Unauthorized(new { message = ex.Message }); }
+        catch (InvalidCredentialsException ex) { return Unauthorized(new { message = ex.Message }); }
     }
 }

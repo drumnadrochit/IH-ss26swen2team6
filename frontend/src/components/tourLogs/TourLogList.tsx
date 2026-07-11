@@ -9,10 +9,10 @@ interface Props {
 
 export default function TourLogList({ logs, onEdit, onDelete }: Props) {
   if (logs.length === 0) {
-    return <p style={{ color: '#6b7280', textAlign: 'center', padding: 24 }}>No logs yet. Record your first trip!</p>;
+    return <p className="empty-state">No logs yet. Record your first trip!</p>;
   }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="flex flex-col gap-2">
       {logs.map((log) => (
         <TourLogCard key={log.id} log={log} onEdit={onEdit} onDelete={onDelete} />
       ))}

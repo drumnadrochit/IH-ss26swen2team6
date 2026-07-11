@@ -13,6 +13,10 @@ public class Tour
     public double Distance { get; set; }
     public int EstimatedTime { get; set; }
     public string? RouteImagePath { get; set; }
+    public double? FromLat { get; set; }
+    public double? FromLon { get; set; }
+    public double? ToLat { get; set; }
+    public double? ToLon { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public Guid UserId { get; set; }

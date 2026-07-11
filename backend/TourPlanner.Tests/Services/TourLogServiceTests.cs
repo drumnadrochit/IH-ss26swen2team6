@@ -1,5 +1,6 @@
 using Moq;
 using NUnit.Framework;
+using TourPlanner.BL.Exceptions;
 using TourPlanner.BL.DTOs;
 using TourPlanner.BL.Services;
 using TourPlanner.DAL.Entities;
@@ -47,7 +48,7 @@ public class TourLogServiceTests
         var tour = new Tour { Id = _tourId, UserId = _userId };
         _tourRepoMock.Setup(r => r.GetByIdAsync(_tourId)).ReturnsAsync(tour);
 
-        Assert.ThrowsAsync<ArgumentException>(() =>
+        Assert.ThrowsAsync<DomainValidationException>(() =>
             _service.CreateLogAsync(_tourId,
                 new CreateTourLogRequest(DateTime.UtcNow, "test", 0, 10, 60, 3), _userId));
     }
@@ -58,7 +59,7 @@ public class TourLogServiceTests
         var tour = new Tour { Id = _tourId, UserId = _userId };
         _tourRepoMock.Setup(r => r.GetByIdAsync(_tourId)).ReturnsAsync(tour);
 
-        Assert.ThrowsAsync<ArgumentException>(() =>
+        Assert.ThrowsAsync<DomainValidationException>(() =>
             _service.CreateLogAsync(_tourId,
                 new CreateTourLogRequest(DateTime.UtcNow, "test", 3, 10, 60, 6), _userId));
     }
@@ -89,7 +90,7 @@ public class TourLogServiceTests
         var tour = new Tour { Id = _tourId, UserId = Guid.NewGuid() };
         _tourRepoMock.Setup(r => r.GetByIdAsync(_tourId)).ReturnsAsync(tour);
 
-        Assert.ThrowsAsync<KeyNotFoundException>(() => _service.GetLogsAsync(_tourId, _userId));
+        Assert.ThrowsAsync<EntityNotFoundException>(() => _service.GetLogsAsync(_tourId, _userId));
     }
 
     [Test]
@@ -112,7 +113,7 @@ public class TourLogServiceTests
         var log = new TourLog { Id = logId, TourId = _tourId, UserId = Guid.NewGuid() };
         _logRepoMock.Setup(r => r.GetByIdAsync(logId)).ReturnsAsync(log);
 
-        Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        Assert.ThrowsAsync<ForbiddenAccessException>(() =>
             _service.DeleteLogAsync(_tourId, logId, _userId));
     }
 }

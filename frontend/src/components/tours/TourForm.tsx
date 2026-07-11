@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { CreateTourRequest, Tour, TransportType } from '../../types/tour.types';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 interface Props {
   initial?: Tour;
-  onSubmit: (data: CreateTourRequest, image?: File | null) => Promise<void>;
+  onSubmit: (data: CreateTourRequest, image?: File) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -15,18 +16,9 @@ export default function TourForm({ initial, onSubmit, onCancel }: Props) {
   const [from, setFrom] = useState(initial?.from ?? '');
   const [to, setTo] = useState(initial?.to ?? '');
   const [transportType, setTransportType] = useState<TransportType>(initial?.transportType ?? 'Bike');
-  const [image, setImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(initial?.routeImagePath ?? null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    setImage(file);
-    if (file) {
-      setPreview(URL.createObjectURL(file));
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,18 +29,17 @@ export default function TourForm({ initial, onSubmit, onCancel }: Props) {
     }
     setLoading(true);
     try {
-      await onSubmit({ name, description, from, to, transportType }, image);
+      await onSubmit({ name, description, from, to, transportType }, imageFile ?? undefined);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg ?? 'Failed to save tour.');
+      setError(getApiErrorMessage(err, 'Failed to save tour.'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card flex flex-col gap-3" style={{ marginBottom: 20 }}>
-      <h3 style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>
+    <form onSubmit={handleSubmit} className="card flex flex-col gap-3 mb-4">
+      <h3 className="section-title" style={{ fontSize: 16 }}>
         {initial ? 'Edit Tour' : 'Create New Tour'}
       </h3>
       <div>
@@ -59,7 +50,7 @@ export default function TourForm({ initial, onSubmit, onCancel }: Props) {
         <label className="label">Description</label>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe the tour..." rows={3} style={{ resize: 'vertical' }} />
       </div>
-      <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid-2col">
         <div>
           <label className="label">From *</label>
           <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="e.g. Vienna" />
@@ -77,17 +68,14 @@ export default function TourForm({ initial, onSubmit, onCancel }: Props) {
       </div>
       <div>
         <label className="label">Tour Image</label>
-        <input type="file" accept="image/*" onChange={handleImageChange} />
-        {preview && (
-          <img
-            src={preview}
-            alt="Preview"
-            style={{ marginTop: 8, maxHeight: 150, maxWidth: '100%', objectFit: 'cover', borderRadius: 6 }}
-          />
-        )}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+        />
       </div>
       {error && <p className="error">{error}</p>}
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="flex-row gap-2">
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Saving...' : (initial ? 'Update Tour' : 'Create Tour')}
         </button>
